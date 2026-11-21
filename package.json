@@ -1,0 +1,6 @@
+{
+  "name": "mein-budget", "version": "1.0.0", "private": true, "type": "module",
+  "scripts": {"start":"tsx src/server.ts", "test":"tsx --test tests/*.test.ts", "typecheck":"tsc --noEmit", "lint":"eslint src tests scripts", "format":"prettier --write src tests scripts public README.md", "cert":"tsx scripts/cert.ts", "seed":"tsx scripts/seed.ts", "test:e2e":"playwright test", "benchmark":"tsx scripts/benchmark.ts"},
+  "dependencies":{"fastify":"^5.6.0","@fastify/static":"^8.3.0","bcryptjs":"^3.0.2","csv-parse":"^6.1.0"},
+  "devDependencies":{"typescript":"^5.9.0","tsx":"^4.20.0","@types/node":"^22.18.0","@playwright/test":"^1.56.0","eslint":"^9.39.0","typescript-eslint":"^8.46.0","prettier":"^3.6.0"}
+}

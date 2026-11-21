@@ -1,0 +1,5 @@
+Date,Amount,Counterparty,Purpose
+2024-02-29,"-1,234.56",Example Shop,"Synthetic purchase, terminal 42"
+2026-11-01,0.29,Example Refund,Exact cent amount
+2026-11-02,+10.5,Example Sender,One decimal place
+2026-11-03,-12,Example Subscription,Whole euros

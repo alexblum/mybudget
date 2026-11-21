@@ -1,0 +1,5 @@
+﻿Buchungstag;Betrag;Name;Verwendungszweck;Saldo
+01.11.2026;-1.234,56;Beispiel Markt;"Wocheneinkauf; Filiale 17";8.765,44
+02.11.2026;+2.500,00;Muster Arbeitgeber;Gehalt November;11.265,44
+03.11.2026;-0,29;Café Beispiel;"Kaffee ""klein""";11.265,15
+04.11.2026;0,00;Beispiel Bank;Information;11.265,15

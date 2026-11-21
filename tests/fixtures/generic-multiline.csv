@@ -1,0 +1,5 @@
+Buchungstag;Betrag;Name;Verwendungszweck
+
+01.11.2026;-12,34;Beispiel Laden;"Erste Zeile
+zweite Zeile; mit Trennzeichen"
+02.11.2026;0,01;Beispiel Bank;Nachricht
