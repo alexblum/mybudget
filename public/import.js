@@ -57,6 +57,13 @@ export function importPanel(ctx) {
     accept: ".csv,text/csv,text/plain",
     required: true,
   });
+  const parser = select(
+    [
+      { value: "generic", label: "Konfigurierbare CSV" },
+      { value: "ing-de", label: "ING Deutschland Umsatzanzeige" },
+    ],
+    "generic",
+  );
   const delimiter = select(
     [
       { value: ";", label: "Semikolon (;)" },
@@ -105,6 +112,14 @@ export function importPanel(ctx) {
       Object.entries(columns).map(([key, node]) => [key, node.value]),
     ),
   });
+  const applyParserDefaults = () => {
+    if (parser.value !== "ing-de") return;
+    delimiter.value = ";";
+    encoding.value = "windows-1252";
+    dateFormat.value = "DD.MM.YYYY";
+    decimalFormat.value = ",";
+    invalidate();
+  };
   const loadProfile = () => {
     const profile = saved();
     const conf = profile?.config || defaultConfig;
@@ -124,6 +139,7 @@ export function importPanel(ctx) {
     previewContainer.replaceChildren();
   };
   account.addEventListener("change", loadProfile);
+  parser.addEventListener("change", applyParserDefaults);
   file.addEventListener("change", () => {
     fileData = null;
     filename = "";
@@ -131,6 +147,7 @@ export function importPanel(ctx) {
     result.replaceChildren();
   });
   for (const control of [
+    parser,
     delimiter,
     encoding,
     dateFormat,
@@ -147,6 +164,11 @@ export function importPanel(ctx) {
       "div",
       { class: "form-grid" },
       field("Zielkonto", account),
+      field(
+        "CSV-Format",
+        parser,
+        "Für den ING-Export werden Metadaten vor der Buchungstabelle automatisch übersprungen.",
+      ),
       field(
         "CSV-Datei",
         file,
@@ -228,6 +250,7 @@ export function importPanel(ctx) {
         account_id: Number(account.value),
         filename,
         content_base64: fileData,
+        parser_id: parser.value,
         config: config(),
       };
       const data = await ctx.api("/api/import/preview", "POST", request);

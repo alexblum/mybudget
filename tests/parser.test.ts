@@ -5,6 +5,7 @@ import {
   ParserError,
   ParserRegistry,
   genericParser,
+  ingParser,
   parserRegistry,
   parseCSV,
   type ParserConfig,
@@ -452,7 +453,7 @@ test("Parser-Registry bietet den Generic-Parser und unterstützt austauschbare P
   assert.equal(parserRegistry.get("generic"), genericParser);
   assert.deepEqual(
     parserRegistry.list().map((parser) => parser.id),
-    ["generic"],
+    ["generic", "ing-de"],
   );
   const registry = new ParserRegistry();
   registry.register({
@@ -547,4 +548,34 @@ test("Windows-1252-Erweiterungsbereich wird unabhängig von Node-ICU vollständi
       2,
     );
   }
+});
+
+test("ING-Umsatzexport überspringt Metadaten und kombiniert Buchungstext mit Verwendungszweck", () => {
+  const rows = ingParser.parse(fixture("ing-export.csv"), {
+    ...german,
+    encoding: "utf-8",
+  });
+  assert.deepEqual(rows, [
+    {
+      booking_date: "2026-11-23",
+      amount_cents: -2316,
+      counterparty: "Beispiel Händler GmbH",
+      purpose: "Echtzeitüberweisung",
+    },
+    {
+      booking_date: "2026-11-20",
+      amount_cents: 50000,
+      counterparty: "Max Beispiel",
+      purpose: "Gutschrift Echtzeitüberweisung",
+    },
+    {
+      booking_date: "2026-11-20",
+      amount_cents: -1595,
+      counterparty: "VISA BEISPIEL MARKT",
+      purpose:
+        "Lastschrift · NR XXXX 0000 MUSTERSTADT DE KAUFUMSATZ 18.11 15.95 103947",
+    },
+  ]);
+  assert.equal(genericParser.id, "generic");
+  assert.equal(ingParser.id, "ing-de");
 });

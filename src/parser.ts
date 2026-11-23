@@ -447,6 +447,66 @@ export const genericParser: CSVParser = {
   parse: parseCSV,
 };
 
+export const ingParser: CSVParser = {
+  id: "ing-de",
+  name: "ING Deutschland Umsatzanzeige",
+  parse(input, config) {
+    const text = decode(input, config.encoding);
+    const header =
+      "Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Referenz;Saldo;Währung;Betrag;Währung";
+    const headerStart = text.indexOf(header);
+    if (headerStart < 0) {
+      throw new ParserError(
+        "MISSING_COLUMN",
+        1,
+        "ING-Kopfzeile wurde nicht gefunden.",
+      );
+    }
+    const body = text.slice(headerStart);
+    const records = parse(body, {
+      delimiter: ";",
+      skip_empty_lines: true,
+      trim: true,
+    }) as string[][];
+    const names = records[0];
+    const booking = names.indexOf("Buchung");
+    const counterparty = names.indexOf("Auftraggeber/Empfänger");
+    const bookingText = names.indexOf("Buchungstext");
+    const purpose = names.indexOf("Verwendungszweck");
+    const amount = names.indexOf("Betrag");
+    if (
+      [booking, counterparty, bookingText, purpose, amount].some(
+        (index) => index < 0,
+      )
+    ) {
+      throw new ParserError("MISSING_COLUMN", 1, "ING-Pflichtspalte fehlt.");
+    }
+    return records.slice(1).map((record, index) => {
+      const line = index + 2;
+      const details = record[purpose]?.trim();
+      const type = record[bookingText]?.trim();
+      if (
+        !record[booking]?.trim() ||
+        !record[counterparty]?.trim() ||
+        !type ||
+        !record[amount]?.trim()
+      ) {
+        throw new ParserError(
+          "MISSING_VALUE",
+          line,
+          "Ein ING-Pflichtfeld der Buchung ist leer.",
+        );
+      }
+      return {
+        booking_date: parseDate(record[booking].trim(), "DD.MM.YYYY", line),
+        amount_cents: parseAmount(record[amount].trim(), ",", line),
+        counterparty: record[counterparty].trim(),
+        purpose: details ? `${type} · ${details}` : type,
+      };
+    });
+  },
+};
+
 export class ParserRegistry {
   private readonly parsers = new Map<string, CSVParser>();
 
@@ -478,3 +538,4 @@ export class ParserRegistry {
 
 export const parserRegistry = new ParserRegistry();
 parserRegistry.register(genericParser);
+parserRegistry.register(ingParser);

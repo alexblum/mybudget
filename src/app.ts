@@ -5,7 +5,7 @@ import { randomBytes, createHash, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import type { SQLInputValue, SQLOutputValue } from "node:sqlite";
 import { openDatabase, atomic } from "./db.js";
-import { parseCSV, type ParserConfig } from "./parser.js";
+import { parserRegistry, type ParserConfig } from "./parser.js";
 import {
   matchRule,
   dashboard,
@@ -917,10 +917,17 @@ export async function createApp(options: {
       "Ungültige Base64-Datei",
     );
     const config = parserConfig(body.config);
+    const parserId =
+      body.parser_id === undefined
+        ? "generic"
+        : choice(body.parser_id, ["generic", "ing-de"]);
     return {
       account_id: accountId,
       config,
-      rows: parseCSV(Buffer.from(content, "base64"), config),
+      parser_id: parserId,
+      rows: parserRegistry
+        .get(parserId)
+        .parse(Buffer.from(content, "base64"), config),
     };
   }
   app.put("/api/profiles/:id", async (req) => {
@@ -954,9 +961,10 @@ export async function createApp(options: {
     return atomic(db, () => {
       const importId = Number(
         run(
-          "INSERT INTO imports(account_id,filename,rows_new,rows_skipped) VALUES(?,?,0,0)",
+          "INSERT INTO imports(account_id,filename,parser_id,rows_new,rows_skipped) VALUES(?,?,?,0,0)",
           input.account_id,
           filename,
+          input.parser_id,
         ).lastInsertRowid,
       );
       const occurrences = new Map<string, number>();

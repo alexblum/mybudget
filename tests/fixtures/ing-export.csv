@@ -1,0 +1,17 @@
+Umsatzanzeige;Datei erstellt am: 23.11.2026 12:09
+
+IBAN;DE00 0000 0000 0000 0000 00
+Kontoname;Girokonto
+Bank;ING
+Kunde;Max Mustermann
+Zeitraum;01.11.2026 - 23.11.2026
+Saldo;741,83;EUR
+
+Sortierung;Datum absteigend
+
+In der CSV-Datei finden Sie alle bereits gebuchten Umsätze.
+
+Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Referenz;Saldo;Währung;Betrag;Währung
+23.11.2026;23.11.2026;Beispiel Händler GmbH;Echtzeitüberweisung;;RF000000000000000;741,83;EUR;-23,16;EUR
+20.11.2026;20.11.2026;Max Beispiel;Gutschrift Echtzeitüberweisung;;;764,99;EUR;500,00;EUR
+20.11.2026;20.11.2026;VISA BEISPIEL MARKT;Lastschrift;NR XXXX 0000 MUSTERSTADT DE KAUFUMSATZ 18.11 15.95 103947;;264,99;EUR;-15,95;EUR
