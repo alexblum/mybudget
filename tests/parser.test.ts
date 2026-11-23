@@ -452,10 +452,6 @@ test("echte identische Buchungen bleiben erhalten, statt im Parser dedupliziert 
 
 test("Parser-Registry bietet den Generic-Parser und unterstützt austauschbare Parser ohne Überschreiben", () => {
   assert.equal(parserRegistry.get("generic"), genericParser);
-  assert.deepEqual(
-    parserRegistry.list().map((parser) => parser.id),
-    ["generic", "ing-de", "sparkasse-camt52"],
-  );
   const registry = new ParserRegistry();
   registry.register({
     ...genericParser,

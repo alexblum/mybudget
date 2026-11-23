@@ -129,6 +129,14 @@ export async function budget(ctx) {
 function transferCard(ctx, pair, confirmed) {
   const outgoing = pair.outgoing;
   const incoming = pair.incoming;
+  const matchDetails = [
+    pair.match_reason,
+    Number.isInteger(pair.day_distance)
+      ? `${pair.day_distance} ${pair.day_distance === 1 ? "Tag" : "Tage"} Abstand`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const endpoint = (transaction) =>
     h(
       "div",
@@ -138,6 +146,9 @@ function transferCard(ctx, pair, confirmed) {
         {},
         h("strong", {}, accountName(ctx.state, transaction.account_id)),
         h("div", { class: "muted" }, transaction.counterparty),
+        transaction.purpose
+          ? h("div", { class: "small muted" }, transaction.purpose)
+          : null,
         h("small", { class: "muted" }, date(transaction.booking_date)),
       ),
       h("strong", {}, money(transaction.amount_cents)),
@@ -148,6 +159,13 @@ function transferCard(ctx, pair, confirmed) {
     endpoint(outgoing),
     h("div", { class: "transfer-divider", "aria-hidden": true }, "↓"),
     endpoint(incoming),
+    matchDetails
+      ? h(
+          "p",
+          { class: "small muted", style: "margin-top:12px" },
+          matchDetails,
+        )
+      : null,
     confirmed
       ? h(
           "div",
@@ -232,7 +250,7 @@ export async function transferPanel(ctx) {
     h(
       "p",
       { class: "small muted" },
-      "Gleicher Betrag, zwei eigene Konten, höchstens drei Tage Abstand. Du entscheidest, welche Buchungen zusammengehören. Kreditkarten-Sammelabbuchungen sind Umbuchungen; einzelne Kartenzahlungen bleiben Ausgaben.",
+      "Gleicher Betrag, zwei eigene Konten: höchstens drei Tage Abstand. Bei mehreren passenden Buchungen musst du das richtige Paar selbst auswählen. Nichts wird automatisch verknüpft. Kreditkarten-Sammelabbuchungen sind Umbuchungen; einzelne Kartenzahlungen bleiben Ausgaben.",
     ),
     h(
       "div",

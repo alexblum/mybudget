@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, chmodSync } from "node:fs";
 import { dirname } from "node:path";
+import { migratePaypal } from "./paypal.js";
 export function openDatabase(path: string) {
   if (path !== ":memory:")
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
@@ -78,6 +79,19 @@ export function openDatabase(path: string) {
         `UPDATE transfer_pair SET outgoing_previous_category_id=(SELECT category_id FROM transactions WHERE id=outgoing_transaction_id),outgoing_previous_category_source=(SELECT category_source FROM transactions WHERE id=outgoing_transaction_id),incoming_previous_category_id=(SELECT category_id FROM transactions WHERE id=incoming_transaction_id),incoming_previous_category_source=(SELECT category_source FROM transactions WHERE id=incoming_transaction_id)`,
       );
     db.prepare("INSERT INTO migration(version) VALUES(2)").run();
+  });
+  atomic(db, () => {
+    if (db.prepare("SELECT version FROM migration WHERE version=3").get()) return;
+    db.exec(`ALTER TABLE transactions ADD COLUMN external_id TEXT;
+      ALTER TABLE transactions ADD COLUMN related_external_id TEXT;
+      ALTER TABLE transactions ADD COLUMN paypal_kind TEXT;
+      CREATE UNIQUE INDEX tx_external ON transactions(account_id,external_id) WHERE external_id IS NOT NULL;
+      INSERT INTO migration(version) VALUES(3);`);
+  });
+  atomic(db, () => {
+    if (db.prepare("SELECT version FROM migration WHERE version=4").get()) return;
+    migratePaypal(db);
+    db.prepare("INSERT INTO migration(version) VALUES(4)").run();
   });
   if (
     !db

@@ -614,9 +614,8 @@ async function transactions() {
       ...(data.rows.length
         ? data.rows.map((transaction) => {
             const node = h(
-              "button",
+              "div",
               {
-                type: "button",
                 class: "transaction-card",
                 "aria-label": `${transaction.counterparty || "Ohne Gegenpartei"} ${money(transaction.amount_cents)} Kategorie ändern`,
               },
@@ -647,23 +646,26 @@ async function transactions() {
                 ? h("p", { class: "transaction-purpose" }, transaction.purpose)
                 : null,
               h(
-                "span",
-                { class: `tag${transaction.category_id ? "" : " warning"}` },
-                icon("tag"),
-                categoryName(ctx.state, transaction.category_id),
+                "div",
+                { class: "transaction-labels" },
+                h(
+                  "span",
+                  {
+                    class: `tag category-tag${transaction.category_id ? "" : " warning"}`,
+                  },
+                  icon("tag"),
+                  categoryName(ctx.state, transaction.category_id),
+                ),
+                transaction.category_source === "manual"
+                  ? h("span", { class: "small muted" }, "Manuell")
+                  : null,
+                transaction.paypal_details?.length
+                  ? h("span", { class: "tag paid" }, "PayPal verknüpft")
+                  : null,
               ),
-              transaction.category_source === "manual"
-                ? h(
-                    "span",
-                    {
-                      class: "small muted",
-                      style: "margin-left:8px;font-size:10px",
-                    },
-                    "Manuell",
-                  )
-                : null,
             );
-            node.addEventListener("click", () => {
+            node.addEventListener("click", (event) => {
+              if (!event.target.closest(".category-tag")) return;
               const dialog = modal("Kategorie wählen");
               dialog.body.append(
                 h("p", { class: "small muted" }, transaction.counterparty),
@@ -718,7 +720,58 @@ async function transactions() {
                 ),
               );
             });
-            return node;
+            if (!transaction.paypal_details?.length) return node;
+            return h(
+              "div",
+              {},
+              node,
+              h(
+                "details",
+                { style: "margin-top:8px" },
+                h(
+                  "summary",
+                  {},
+                  `PayPal-Details (${transaction.paypal_details.length})`,
+                ),
+                h(
+                  "p",
+                  {},
+                  "Ergänzende Händlerangaben. Betrag und Kategorie stammen weiterhin aus deiner Bankbuchung.",
+                ),
+                transaction.paypal_details.map((detail) =>
+                  h(
+                    "div",
+                    { class: "preview-row" },
+                    h(
+                      "div",
+                      { class: "row" },
+                      h("strong", {}, detail.counterparty || "Ohne Händlerangabe"),
+                      h("strong", {}, money(detail.amount_cents)),
+                    ),
+                    h(
+                      "p",
+                      {},
+                      `${date(detail.booking_date)} · ${detail.paypal_kind === "refund" ? "Rückerstattung" : "Zahlung"}`,
+                    ),
+                    detail.purpose ? h("p", {}, detail.purpose) : null,
+                    detail.external_id
+                      ? h(
+                          "p",
+                          { style: "overflow-wrap:anywhere" },
+                          `PayPal-Transaktionscode: ${detail.external_id}`,
+                        )
+                      : null,
+                    detail.related_external_id
+                      ? h(
+                          "p",
+                          { style: "overflow-wrap:anywhere" },
+                          `Zugehöriger Transaktionscode: ${detail.related_external_id}`,
+                        )
+                      : null,
+                  ),
+                ),
+              ),
+            );
           })
         : [
             empty(

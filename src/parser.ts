@@ -19,6 +19,15 @@ export interface ParsedTransaction {
   amount_cents: number;
   counterparty: string;
   purpose: string;
+  external_id?: string;
+  related_external_id?: string | null;
+  paypal_kind?:
+    | "payment"
+    | "refund"
+    | "bank_funding"
+    | "bank_withdrawal"
+    | "credit_funding"
+    | "credit_repayment";
 }
 
 export interface CSVParser {
@@ -37,7 +46,11 @@ export type ParserErrorCode =
   | "INVALID_CSV"
   | "INVALID_DATE"
   | "INVALID_AMOUNT"
-  | "MISSING_VALUE";
+  | "MISSING_VALUE"
+  | "UNSUPPORTED_CURRENCY"
+  | "UNSUPPORTED_TRANSACTION"
+  | "UNSUPPORTED_FEE"
+  | "DUPLICATE_TRANSACTION";
 
 /** Errors deliberately omit source field values, which may contain financial data. */
 export class ParserError extends Error {
@@ -579,6 +592,159 @@ export const sparkasseParser: CSVParser = {
   },
 };
 
+const paypalKinds: Record<
+  string,
+  NonNullable<ParsedTransaction["paypal_kind"]>
+> = {
+  Rückzahlung: "refund",
+  "Allgemeine Zahlung per Käuferkredit": "credit_repayment",
+  "Zahlung per PayPal-Käuferkredit": "credit_funding",
+  "Bankgutschrift auf PayPal-Konto": "bank_funding",
+  "Von Nutzer eingeleitete Abbuchung": "bank_withdrawal",
+  "Zahlung im Einzugsverfahren mit Zahlungsrechnung": "payment",
+  Handyzahlung: "payment",
+  "Website-Zahlung": "payment",
+  "PayPal Express-Zahlung": "payment",
+  "Allgemeine Zahlung": "payment",
+};
+
+export const paypalParser: CSVParser = {
+  id: "paypal-de",
+  name: "PayPal Deutschland Transaktionsübersicht",
+  parse(input, config) {
+    validateConfig({
+      ...config,
+      delimiter: ",",
+      date_format: "DD.MM.YYYY",
+      decimal_format: ",",
+      column_mapping: {
+        booking_date: "Datum",
+        amount_cents: "Netto",
+        counterparty: "Name",
+        purpose: "Beschreibung",
+      },
+    });
+    const text = decode(input, config.encoding);
+    let records: { record: string[]; info: { lines: number } }[];
+    try {
+      records = parse(text, {
+        delimiter: ",",
+        bom: true,
+        skip_empty_lines: true,
+        trim: true,
+        info: true,
+      }) as unknown as typeof records;
+    } catch (error) {
+      if (error instanceof CsvError) {
+        throw new ParserError(
+          "INVALID_CSV",
+          typeof error.lines === "number" ? error.lines : 1,
+          "PayPal-CSV-Struktur ist ungültig; Komma als Trennzeichen und Anführungszeichen prüfen.",
+        );
+      }
+      throw error;
+    }
+    const header = records[0];
+    if (!header) {
+      throw new ParserError("EMPTY_FILE", 1, "PayPal-Datei ist leer.");
+    }
+    const names = header.record.map((name) => name.trim());
+    if (new Set(names).size !== names.length) {
+      throw new ParserError(
+        "DUPLICATE_COLUMN",
+        header.info.lines,
+        "PayPal-Datei enthält doppelte Spaltennamen.",
+      );
+    }
+    const required = [
+      "Datum",
+      "Beschreibung",
+      "Währung",
+      "Netto",
+      "Entgelt",
+      "Transaktionscode",
+      "Name",
+      "Rechnungsnummer",
+      "Zugehöriger Transaktionscode",
+    ];
+    const indices = required.map((name) => names.indexOf(name));
+    if (indices.some((index) => index < 0)) {
+      throw new ParserError(
+        "MISSING_COLUMN",
+        header.info.lines,
+        "PayPal-Pflichtspalte fehlt; deutschen CSV-Export mit Komma als Trennzeichen verwenden.",
+      );
+    }
+    const ids = new Set<string>();
+    const rows: ParsedTransaction[] = [];
+    for (const { record, info } of records.slice(1)) {
+      const line = info.lines;
+      const [date, description, currency, amount, fee, id, name, invoice, related] =
+        indices.map((index) => record[index].trim());
+      if (!date || !description || !currency || !amount || !fee || !id) {
+        throw new ParserError(
+          "MISSING_VALUE",
+          line,
+          "Ein PayPal-Pflichtfeld der Buchung ist leer (einschließlich Transaktionscode).",
+        );
+      }
+      if (ids.has(id)) {
+        throw new ParserError(
+          "DUPLICATE_TRANSACTION",
+          line,
+          "PayPal-Transaktionscode kommt in der Datei mehrfach vor.",
+        );
+      }
+      if (currency !== "EUR") {
+        throw new ParserError(
+          "UNSUPPORTED_CURRENCY",
+          line,
+          "PayPal-Import unterstützt ausschließlich EUR-Buchungen.",
+        );
+      }
+      const kind = Object.hasOwn(paypalKinds, description)
+        ? paypalKinds[description]
+        : undefined;
+      if (!kind) {
+        throw new ParserError(
+          "UNSUPPORTED_TRANSACTION",
+          line,
+          "PayPal-Buchungsbeschreibung wird nicht unterstützt.",
+        );
+      }
+      if (parseAmount(fee, ",", line) !== 0) {
+        throw new ParserError(
+          "UNSUPPORTED_FEE",
+          line,
+          "PayPal-Buchungen mit Entgelt werden nicht unterstützt.",
+        );
+      }
+      const purpose = [description];
+      if (invoice) purpose.push(`Rechnung ${invoice}`);
+      purpose.push(`Transaktion ${id}`);
+      if (related) purpose.push(`Bezug ${related}`);
+      rows.push({
+        booking_date: parseDate(date, "DD.MM.YYYY", line),
+        amount_cents: parseAmount(amount, ",", line),
+        counterparty: name || "PayPal",
+        purpose: purpose.join(" · "),
+        external_id: id,
+        related_external_id: related || null,
+        paypal_kind: kind,
+      });
+      ids.add(id);
+    }
+    if (!rows.length) {
+      throw new ParserError(
+        "EMPTY_FILE",
+        header.info.lines,
+        "PayPal-Datei enthält keine Buchungen.",
+      );
+    }
+    return rows;
+  },
+};
+
 export class ParserRegistry {
   private readonly parsers = new Map<string, CSVParser>();
 
@@ -612,3 +778,4 @@ export const parserRegistry = new ParserRegistry();
 parserRegistry.register(genericParser);
 parserRegistry.register(ingParser);
 parserRegistry.register(sparkasseParser);
+parserRegistry.register(paypalParser);

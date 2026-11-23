@@ -763,6 +763,12 @@ input[type="file"]::file-selector-button {
   margin: 0 0 11px;
   overflow-wrap: anywhere;
 }
+.transaction-labels {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .tag {
   display: inline-flex;
   align-items: center;

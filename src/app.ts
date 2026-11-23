@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import type { SQLInputValue, SQLOutputValue } from "node:sqlite";
 import { openDatabase, atomic } from "./db.js";
 import { parserRegistry, type ParserConfig } from "./parser.js";
+import { paypalStore } from "./paypal.js";
 import {
   matchRule,
   dashboard,
@@ -290,6 +291,7 @@ export async function createApp(options: {
     db.prepare(sql).get(...args);
   const run = (sql: string, ...args: SQLInputValue[]) =>
     db.prepare(sql).run(...args);
+  const paypal = paypalStore(db);
   const count = (sql: string, ...args: SQLInputValue[]) =>
     integer(get(sql, ...args)?.n, 0);
   const sessions = new Map<string, Session>();
@@ -500,10 +502,11 @@ export async function createApp(options: {
   };
   const transferCategoryUsed = (categoryId: number) =>
     !!get(
-      "SELECT t.id FROM transactions t JOIN transfer_pair p ON t.id=p.outgoing_transaction_id OR t.id=p.incoming_transaction_id WHERE t.category_id=? LIMIT 1",
+      "SELECT t.id FROM transactions t WHERE EXISTS (SELECT 1 FROM transfer_pair p WHERE t.id=p.outgoing_transaction_id OR t.id=p.incoming_transaction_id) AND t.category_id=? LIMIT 1",
       categoryId,
     );
-  function requireUnmatched(transactionId: number) {
+  function requireUnmatched(transactionId: number, protectPaypal = false) {
+    requireThat(get("SELECT id FROM transactions WHERE id=?", transactionId), "Buchung nicht gefunden", 404);
     requireThat(
       !get(
         "SELECT id FROM transfer_pair WHERE outgoing_transaction_id=? OR incoming_transaction_id=?",
@@ -519,6 +522,11 @@ export async function createApp(options: {
       ),
       "Zahlungsabgleich erst aufheben",
     );
+    if (protectPaypal)
+      requireThat(
+        !get("SELECT id FROM paypal_detail WHERE transaction_id=?", transactionId),
+        "PayPal-Verknüpfung erst aufheben",
+      );
   }
 
   app.get("/api/state", async () => ({
@@ -777,9 +785,9 @@ export async function createApp(options: {
       const search = string(query.text);
       if (search) {
         where.push(
-          "(instr(lower(counterparty),lower(?))>0 OR instr(lower(purpose),lower(?))>0)",
+          "(instr(lower(counterparty),lower(?))>0 OR instr(lower(purpose),lower(?))>0 OR EXISTS (SELECT 1 FROM paypal_detail d WHERE d.transaction_id=transactions.id AND (instr(lower(d.counterparty),lower(?))>0 OR instr(lower(d.purpose),lower(?))>0)))",
         );
-        args.push(search, search);
+        args.push(search, search, search, search);
       }
     }
     const clause = where.length ? " WHERE " + where.join(" AND ") : "";
@@ -788,20 +796,22 @@ export async function createApp(options: {
         ? 0
         : queryInteger(query.page, 0);
     requireThat(Number.isSafeInteger(page * 50), "Ungültige Seite");
+    const rows = all(
+      `SELECT * FROM transactions${clause} ORDER BY booking_date DESC,id DESC LIMIT 50 OFFSET ?`,
+      ...args,
+      page * 50,
+    );
+    const details = paypal.linkedDetails(rows.map((row) => id(row.id)));
     return {
-      rows: all(
-        `SELECT * FROM transactions${clause} ORDER BY booking_date DESC,id DESC LIMIT 50 OFFSET ?`,
-        ...args,
-        page * 50,
-      ),
+      rows: rows.map((row) => ({ ...row, paypal_details: details.get(id(row.id)) ?? [] })),
       total: count(`SELECT count(*) n FROM transactions${clause}`, ...args),
     };
   });
   app.post("/api/transactions/:id/category", async (req) => {
     const transactionId = parameterId(req.params),
       categoryId = nullableId(object(req.body).category_id);
-    if (categoryId !== null) category(categoryId);
     requireUnmatched(transactionId);
+    if (categoryId !== null) category(categoryId);
     run(
       "UPDATE transactions SET category_id=?,category_source=? WHERE id=?",
       categoryId,
@@ -905,22 +915,29 @@ export async function createApp(options: {
   );
 
   function importInput(value: unknown) {
-    const body = object(value),
-      accountId = id(body.account_id);
-    requireThat(
-      get("SELECT id FROM account WHERE id=?", accountId),
-      "Konto nicht gefunden",
-    );
+    const body = object(value);
+    const parserId =
+      body.parser_id === undefined
+        ? "generic"
+        : choice(body.parser_id, ["generic", "ing-de", "sparkasse-camt52", "paypal-de"]);
+    const accountId = parserId === "paypal-de" ? null : id(body.account_id);
+    if (accountId !== null)
+      requireThat(
+        get("SELECT id FROM account WHERE id=?", accountId),
+        "Konto nicht gefunden",
+      );
     const content = string(body.content_base64, 24 * 1024 * 1024);
     requireThat(
       content.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(content),
       "Ungültige Base64-Datei",
     );
-    const config = parserConfig(body.config);
-    const parserId =
-      body.parser_id === undefined
-        ? "generic"
-        : choice(body.parser_id, ["generic", "ing-de", "sparkasse-camt52"]);
+    const config: ParserConfig = parserId === "paypal-de" ? {
+      delimiter: ",",
+      encoding: choice(object(body.config).encoding, ["utf-8", "windows-1252"]),
+      date_format: "DD.MM.YYYY",
+      decimal_format: ",",
+      column_mapping: { booking_date: "Datum", amount_cents: "Netto", counterparty: "Name", purpose: "Beschreibung" },
+    } : parserConfig(body.config);
     return {
       account_id: accountId,
       config,
@@ -959,10 +976,12 @@ export async function createApp(options: {
       filename = text(body.filename),
       input = importInput(body);
     return atomic(db, () => {
+      if (input.parser_id === "paypal-de") return paypal.importRows(filename, input.rows);
+      const accountId = input.account_id!;
       const importId = Number(
         run(
           "INSERT INTO imports(account_id,filename,parser_id,rows_new,rows_skipped) VALUES(?,?,?,0,0)",
-          input.account_id,
+          accountId,
           filename,
           input.parser_id,
         ).lastInsertRowid,
@@ -975,7 +994,7 @@ export async function createApp(options: {
         const hash = createHash("sha256")
           .update(
             JSON.stringify([
-              input.account_id,
+              accountId,
               row.booking_date,
               row.amount_cents,
               row.counterparty,
@@ -996,7 +1015,7 @@ export async function createApp(options: {
         const categoryId = matchRule(row, currentRules);
         run(
           "INSERT INTO transactions(account_id,booking_date,amount_cents,counterparty,purpose,category_id,category_source,import_id,dedup_hash,dedup_occurrence) VALUES(?,?,?,?,?,?,?,?,?,?)",
-          input.account_id,
+          accountId,
           row.booking_date,
           row.amount_cents,
           row.counterparty,
@@ -1018,9 +1037,10 @@ export async function createApp(options: {
       );
       run(
         "INSERT INTO import_profile(account_id,config) VALUES(?,?) ON CONFLICT(account_id) DO UPDATE SET config=excluded.config",
-        input.account_id,
+        accountId,
         JSON.stringify(input.config),
       );
+      paypal.match();
       return {
         new_count: added,
         skipped_count: input.rows.length - added,
@@ -1028,6 +1048,15 @@ export async function createApp(options: {
       };
     });
   });
+  app.get("/api/paypal", async () => ({ rows: paypal.list() }));
+  app.post("/api/paypal/:id/link", async (req) => atomic(db, () => {
+    paypal.link(parameterId(req.params), id(object(req.body).transaction_id));
+    return { ok: true };
+  }));
+  app.delete("/api/paypal/:id/link", async (req) => atomic(db, () => {
+    paypal.unlink(parameterId(req.params));
+    return { ok: true };
+  }));
   function ensureOccurrences(targetMonth: string) {
     for (const item of recurringItems())
       for (const due of recurringDates(
@@ -1075,6 +1104,8 @@ export async function createApp(options: {
       used.add(pair.outgoing_transaction_id);
       used.add(pair.incoming_transaction_id);
     }
+    for (const row of all("SELECT transaction_id FROM paypal_detail WHERE transaction_id IS NOT NULL"))
+      used.add(id(row.transaction_id));
     const incomingByAmount = new Map<number, Transaction[]>();
     for (const transaction of transactions) {
       if (transaction.amount_cents <= 0 || used.has(transaction.id)) continue;
@@ -1102,7 +1133,7 @@ export async function createApp(options: {
                 ) <=
                   3 * 86400000,
             )
-            .map((incoming) => ({ outgoing, incoming })),
+            .map((incoming) => ({ outgoing, incoming, day_distance: Math.round(Math.abs(Date.parse(incoming.booking_date) - Date.parse(outgoing.booking_date)) / 86400000), match_reason: "Gleicher Betrag, höchstens 3 Tage Abstand." })),
         ),
       pairs: currentPairs.map((pair) => ({
         id: pair.id,
@@ -1122,8 +1153,8 @@ export async function createApp(options: {
         target.is_excluded && !target.is_income,
         "Ausgeschlossene Kategorie erforderlich",
       );
-      requireUnmatched(outgoingId);
-      requireUnmatched(incomingId);
+      requireUnmatched(outgoingId, true);
+      requireUnmatched(incomingId, true);
       const pair = transferData().suggestions.find(
         (candidate) =>
           candidate.outgoing.id === outgoingId &&
@@ -1243,6 +1274,8 @@ export async function createApp(options: {
         .map((entry) => entry.id),
     );
     const used = protectedTransactionIds();
+    for (const row of all("SELECT transaction_id FROM paypal_detail WHERE transaction_id IS NOT NULL"))
+      used.add(id(row.transaction_id));
     const candidates = txs().filter(
       (transaction) =>
         transaction.amount_cents < 0 &&
@@ -1293,7 +1326,7 @@ export async function createApp(options: {
       );
       requireThat(row, "Fälligkeit nicht gefunden", 404);
       const occurrence = occurrenceRow(row);
-      requireUnmatched(transactionId);
+      requireUnmatched(transactionId, true);
       const suggestion = recurringData(
         occurrence.due_date.slice(0, 7),
       ).suggestions.find(

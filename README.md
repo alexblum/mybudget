@@ -56,11 +56,25 @@ Zielkonto wählen, Datei wählen, Trennzeichen, Encoding (`utf-8`/`windows-1252`
 Der Hash enthält Konto, Datum, Centbetrag, Gegenpartei und Verwendungszweck. Identische Vorkommen werden gezählt: zwei vorhandene und drei in der Datei ergeben eine neue Buchung. Echte identische Buchungen, die nie gemeinsam in einer Datei vorkommen, sind anhand dieser Informationen nicht unterscheidbar. Solche Zeiträume gemeinsam exportieren. Keine automatische externe Bankanbindung.
 Der Assistent hat sechs Bildschirme: Konten, Historienimport, Gegenparteigruppen, Einkommen/feste Kosten/Umbuchungen, Startbudget und Zusammenfassung. „Später fortsetzen“ speichert den Schritt; bestätigte Aktionen und übersprungene Vorschläge bleiben auf dem Server erhalten. Unter „Mehr“ lässt er sich erneut öffnen, etwa für ein zusätzliches Konto. Neue CSV-Profile werden je Zielkonto gespeichert und beim nächsten Import wiederverwendet. Regelvorschläge und deren tatsächliche Treffer vor dem Bestätigen prüfen.
 
+### PayPal importieren und abgleichen
+
+1. Im CSV-Import „PayPal Deutschland Aktivitäten“ wählen. Ein separates PayPal-Konto ist nicht erforderlich. Den deutschen Transaktionsübersicht-Export hochladen; UTF-8 ist Standard, Windows-1252 ist auswählbar.
+2. Vorschau prüfen und bestätigen. Die PayPal-Zeilen werden als Zusatzinformationen gespeichert, niemals als eigene Budgetbuchungen. Wiederholte Exporte werden anhand des Transaktionscodes erkannt; widersprüchliche Daten brechen den Import atomar ab.
+3. Eindeutige Zuordnungen zu Bankbuchungen entstehen automatisch nach jedem Bank- oder PayPal-Import. Betrag, Richtung, PayPal-Bankfinanzierung beziehungsweise Auszahlung, Datumsabstand (höchstens 14 Tage) und verfügbare Händlerangaben dienen dem Abgleich. Bei mehreren möglichen Treffern wird keine Zuordnung erzwungen.
+4. Die Kontobuchung trägt „PayPal verknüpft“. Aufklappbare Details zeigen Händler, PayPal-Datum, Beschreibung, Rechnung und Transaktionscodes. Bankbetrag, Bankdatum und Kategorie bleiben unverändert.
+5. Im PayPal-Abgleich auf der Importseite offene Fälle prüfen, einen vorgeschlagenen Treffer manuell verknüpfen oder eine bestehende Zuordnung lösen und korrigieren. Eine gelöste Zuordnung wird nicht beim nächsten Import automatisch wiederhergestellt.
+
+Nicht zugeordnete PayPal-Vorgänge erscheinen ausschließlich im Abgleich, nicht im Budget. Käuferkredit-Käufe bleiben entsprechend markiert: Eine einzelne spätere Bankrate ist keinem Kauf zuverlässig zuzuordnen. Sammelabbuchungen, Teilfinanzierungen und Kreditraten werden nicht automatisch verknüpft. PayPal-Erstattungsdetails ändern die bestehende Budgetbehandlung der Bankgutschrift nicht.
+
+Beim nächsten Start migriert die App zuvor als Kontobuchungen importierte PayPal-Zeilen in den Detailbestand. Zugehörige alte Umbuchungen werden aufgelöst und die ursprünglichen Kategorien der Bankbuchungen wiederhergestellt. Vor einem Versionswechsel wie üblich eine Datenbanksicherung erstellen.
+
+Unterstützt werden die Buchungsarten des deutschen Beispiel-Exports, ausschließlich EUR ohne PayPal-Entgelt. Unbekannte Buchungsarten, Fremdwährung, Entgelt sowie fehlende oder doppelte Transaktionscodes führen zu einem Fehler. Versandkosten werden nicht zusätzlich addiert: Maßgeblich ist der Netto-Buchungsbetrag.
+
 ## Fachliche Regeln
 
 Budgets gelten über alle Konten. Der Dashboard-Kontofilter ergänzt klar beschriftete Kontowerte, verändert aber keine globalen Budgets oder Reste. Einkommen sind nur positive Buchungen markierter Einkommenskategorien. Vor dem ersten monatlichen Eingang gilt ausschließlich das tatsächliche Einkommen des direkten Vormonats, sonst null.
 
-Offene feste Posten reservieren innerhalb des Budgets; sie erhöhen es nicht. Nach bestätigter Zahlung zählt nur die Buchung als Ausgabe. Umbuchungen erfordern Bestätigung und zählen weder als Einkommen noch Ausgabe. Positive Buchungen normaler Kategorien werden in V1 nicht als Erstattungs-Gegenrechnung behandelt.
+Offene feste Posten reservieren innerhalb des Budgets; sie erhöhen es nicht. Nach bestätigter Zahlung zählt nur die Buchung als Ausgabe. Umbuchungen erfordern Bestätigung und zählen weder als Einkommen noch Ausgabe. Positive Buchungen normaler Kategorien werden nicht als Erstattungs-Gegenrechnung behandelt. PayPal-Details verändern keine Budgetbeträge.
 
 Übertrag wirkt pro Kategorie über die gesamte Historie, auch bei negativen Resten. Änderungen rückwirkender Buchungen/Budgets ändern Folgemonate; Umschalten wirkt ebenfalls rückwirkend. Neue Monatsbudgets übernehmen den Vormonat, gespeicherte Werte werden nicht still überschrieben. Einkommens- und ausgeschlossene Kategorien sind nicht budgetierbar.
 
