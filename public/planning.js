@@ -417,7 +417,7 @@ export async function recurring(ctx) {
           h(
             "div",
             {},
-            transactionPreview(suggestion.transaction, ctx.state),
+            [transactionPreview(suggestion.transaction, ctx.state)],
             action(
               "Zahlung prüfen",
               () => {

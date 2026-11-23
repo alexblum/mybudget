@@ -72,13 +72,11 @@ test("vollständiger lokaler Hauptpfad mit wiederaufnehmbarer Einrichtung", asyn
   ).toBeVisible();
   await page.getByLabel("Zielkonto").selectOption({ label: account });
   const csv = `Datum;Betrag;Gegenpartei;Verwendungszweck\n${germanDate};-42,50;MARKT ${info.project.name};Wocheneinkauf\n${germanDate};2500,00;ARBEITGEBER ${info.project.name};Gehalt\n`;
-  await page
-    .getByLabel("CSV-Datei")
-    .setInputFiles({
-      name: "umsatz.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from(csv),
-    });
+  await page.getByLabel("CSV-Datei").setInputFiles({
+    name: "umsatz.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(csv),
+  });
   await page
     .getByRole("button", { name: "Vorschau anzeigen", exact: true })
     .click();
@@ -213,4 +211,56 @@ test("vollständiger lokaler Hauptpfad mit wiederaufnehmbarer Einrichtung", asyn
     page.getByRole("button", { name: "Anmelden", exact: true }),
   ).toBeVisible();
   expect(foreign).toEqual([]);
+});
+
+test("wiederkehrende Zahlungsvorschläge zeigen Buchungsdaten statt DOM-Objekttext", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByLabel("Passwort", { exact: true }).fill(password);
+  if (await page.getByLabel("Passwort wiederholen").isVisible()) {
+    await page.getByLabel("Passwort wiederholen").fill(password);
+    await page.getByRole("button", { name: "Passwort festlegen" }).click();
+  } else {
+    await page.getByRole("button", { name: "Anmelden", exact: true }).click();
+  }
+  await page.getByRole("button", { name: "Mehr", exact: true }).click();
+  await page.getByRole("button", { name: "Feste Posten", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Festen Posten hinzufügen", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Name", { exact: true }).fill("Vorschau Miete");
+  await dialog.getByLabel("Betrag in Euro").fill("42,50");
+  await dialog.getByLabel("Erste Fälligkeit").fill(`${month}-05`);
+  await dialog.getByLabel("Kategorie").selectOption({ label: "Wohnen" });
+  await dialog.getByLabel("Gegenpartei-Hinweis").fill("Vermieter Vorschau");
+  await dialog.getByRole("button", { name: "Speichern", exact: true }).click();
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  const csv = `Datum;Betrag;Gegenpartei;Verwendungszweck\n05.${month.slice(5)}.${month.slice(0, 4)};-42,50;Vermieter Vorschau;Miete\n`;
+  await page.getByLabel("Zielkonto").selectOption({ index: 1 });
+  await page
+    .getByLabel("CSV-Datei")
+    .setInputFiles({
+      name: "miete.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv),
+    });
+  await page
+    .getByRole("button", { name: "Vorschau anzeigen", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Import bestätigen", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Mehr", exact: true }).click();
+  await page.getByRole("button", { name: "Feste Posten", exact: true }).click();
+  await expect(
+    page.getByText("Mögliche Zahlung gefunden:", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("[object HTMLDivElement]", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("Vermieter Vorschau", { exact: true }),
+  ).toBeVisible();
 });
