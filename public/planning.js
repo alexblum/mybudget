@@ -413,7 +413,7 @@ export async function recurring(ctx) {
             ? "Mehrere passende Zahlungen. Wähle die richtige:"
             : "Mögliche Zahlung gefunden:",
         ),
-        matches.map((suggestion) =>
+        ...matches.map((suggestion) =>
           h(
             "div",
             {},
