@@ -581,6 +581,23 @@ test("ING-Umsatzexport überspringt Metadaten und kombiniert Buchungstext mit Ve
   assert.equal(ingParser.id, "ing-de");
 });
 
+test("ING-Umsatzexport verwendet bei Bankbuchungen den Buchungstext als Gegenpartei", () => {
+  const source = [
+    "Umsatzanzeige;Datei erstellt am: 23.11.2026 12:09",
+    "",
+    "Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Referenz;Saldo;Währung;Betrag;Währung",
+    "23.11.2026;23.11.2026;;ABSCHLUSS;Zins-/Entgeltabrechnung;;100,00;EUR;-1,50;EUR",
+  ].join("\n");
+  assert.deepEqual(ingParser.parse(Buffer.from(source), german), [
+    {
+      booking_date: "2026-11-23",
+      amount_cents: -150,
+      counterparty: "ABSCHLUSS",
+      purpose: "ABSCHLUSS · Zins-/Entgeltabrechnung",
+    },
+  ]);
+});
+
 test("Sparkassen-CAMT52 importiert nur gebuchte Umsätze mit zweistelligem Jahr", () => {
   const rows = sparkasseParser.parse(fixture("sparkasse-camt52.csv"), german);
   assert.deepEqual(rows, [

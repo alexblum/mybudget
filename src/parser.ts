@@ -485,12 +485,7 @@ export const ingParser: CSVParser = {
       const line = index + 2;
       const details = record[purpose]?.trim();
       const type = record[bookingText]?.trim();
-      if (
-        !record[booking]?.trim() ||
-        !record[counterparty]?.trim() ||
-        !type ||
-        !record[amount]?.trim()
-      ) {
+      if (!record[booking]?.trim() || !type || !record[amount]?.trim()) {
         throw new ParserError(
           "MISSING_VALUE",
           line,
@@ -500,7 +495,7 @@ export const ingParser: CSVParser = {
       return {
         booking_date: parseDate(record[booking].trim(), "DD.MM.YYYY", line),
         amount_cents: parseAmount(record[amount].trim(), ",", line),
-        counterparty: record[counterparty].trim(),
+        counterparty: record[counterparty]?.trim() || type,
         purpose: details ? `${type} · ${details}` : type,
       };
     });
