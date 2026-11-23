@@ -1,0 +1,4 @@
+"Auftragskonto";"Buchungstag";"Valutadatum";"Buchungstext";"Verwendungszweck";"Glaeubiger ID";"Mandatsreferenz";"Kundenreferenz (End-to-End)";"Sammlerreferenz";"Lastschrift Ursprungsbetrag";"Auslagenersatz Ruecklastschrift";"Beguenstigter/Zahlungspflichtiger";"Kontonummer/IBAN";"BIC (SWIFT-Code)";"Betrag";"Waehrung";"Info"
+"DE00000000000000000000";"23.11.26";"24.11.26";"EINMAL LASTSCHRIFT";"Vorgemerktes Beispiel";"DE00TEST";"0";"";"";"";"";"BEISPIEL VEREIN E.V.";"DE00000000000000000001";"TESTDEFF";"-40,00";"EUR";"Umsatz vorgemerkt"
+"DE00000000000000000000";"23.11.26";"23.11.26";"SEPA-ELV-LASTSCHRIFT";"Tanken Musterstadt";"DE00TEST";"M0001";"K0001";"";"";"";"JET BEISPIEL";"DE00000000000000000002";"TESTDEFF";"-59,67";"EUR";"Umsatz gebucht"
+"DE00000000000000000000";"19.11.26";"19.11.26";"GUTSCHRIFT UEBERWEISUNG";"Kontoverifizierung";"";"";"K0002";"";"";"";"BEISPIEL BANK GMBH";"DE00000000000000000003";"TESTDEFF";"0,01";"EUR";"Umsatz gebucht"

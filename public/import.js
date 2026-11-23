@@ -61,6 +61,7 @@ export function importPanel(ctx) {
     [
       { value: "generic", label: "Konfigurierbare CSV" },
       { value: "ing-de", label: "ING Deutschland Umsatzanzeige" },
+      { value: "sparkasse-camt52", label: "Sparkasse CAMT52 v8" },
     ],
     "generic",
   );
@@ -113,9 +114,9 @@ export function importPanel(ctx) {
     ),
   });
   const applyParserDefaults = () => {
-    if (parser.value !== "ing-de") return;
+    if (!["ing-de", "sparkasse-camt52"].includes(parser.value)) return;
     delimiter.value = ";";
-    encoding.value = "windows-1252";
+    encoding.value = parser.value === "ing-de" ? "windows-1252" : "utf-8";
     dateFormat.value = "DD.MM.YYYY";
     decimalFormat.value = ",";
     invalidate();

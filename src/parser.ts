@@ -507,6 +507,82 @@ export const ingParser: CSVParser = {
   },
 };
 
+export const sparkasseParser: CSVParser = {
+  id: "sparkasse-camt52",
+  name: "Sparkasse CAMT52 v8",
+  parse(input, config) {
+    const text = decode(input, config.encoding);
+    const records = parse(text, {
+      delimiter: ";",
+      skip_empty_lines: true,
+      trim: true,
+    }) as string[][];
+    if (records.length < 2)
+      throw new ParserError(
+        "EMPTY_FILE",
+        1,
+        "Sparkassen-Datei enthält keine Buchungen.",
+      );
+    const names = records[0];
+    const booking = names.indexOf("Buchungstag");
+    const bookingText = names.indexOf("Buchungstext");
+    const purpose = names.indexOf("Verwendungszweck");
+    const counterparty = names.indexOf("Beguenstigter/Zahlungspflichtiger");
+    const amount = names.indexOf("Betrag");
+    const status = names.indexOf("Info");
+    if (
+      [booking, bookingText, purpose, counterparty, amount, status].some(
+        (index) => index < 0,
+      )
+    )
+      throw new ParserError(
+        "MISSING_COLUMN",
+        1,
+        "Sparkassen-Pflichtspalte fehlt.",
+      );
+    const rows: ParsedTransaction[] = [];
+    for (const [index, record] of records.slice(1).entries()) {
+      const line = index + 2;
+      if (record[status]?.trim().toLowerCase() !== "umsatz gebucht") continue;
+      const dateParts = record[booking]
+        ?.trim()
+        .match(/^(\d{2})\.(\d{2})\.(\d{2})$/u);
+      if (!dateParts)
+        throw new ParserError(
+          "INVALID_DATE",
+          line,
+          "Sparkassen-Buchungstag ist ungültig.",
+        );
+      const type = record[bookingText]?.trim();
+      const party = record[counterparty]?.trim();
+      const details = record[purpose]?.trim();
+      if (!type || !party || !record[amount]?.trim())
+        throw new ParserError(
+          "MISSING_VALUE",
+          line,
+          "Ein Sparkassen-Pflichtfeld der Buchung ist leer.",
+        );
+      rows.push({
+        booking_date: parseDate(
+          `${dateParts[1]}.${dateParts[2]}.20${dateParts[3]}`,
+          "DD.MM.YYYY",
+          line,
+        ),
+        amount_cents: parseAmount(record[amount].trim(), ",", line),
+        counterparty: party,
+        purpose: details ? `${type} · ${details}` : type,
+      });
+    }
+    if (!rows.length)
+      throw new ParserError(
+        "EMPTY_FILE",
+        1,
+        "Sparkassen-Datei enthält keine gebuchten Umsätze.",
+      );
+    return rows;
+  },
+};
+
 export class ParserRegistry {
   private readonly parsers = new Map<string, CSVParser>();
 
@@ -539,3 +615,4 @@ export class ParserRegistry {
 export const parserRegistry = new ParserRegistry();
 parserRegistry.register(genericParser);
 parserRegistry.register(ingParser);
+parserRegistry.register(sparkasseParser);

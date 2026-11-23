@@ -920,7 +920,7 @@ export async function createApp(options: {
     const parserId =
       body.parser_id === undefined
         ? "generic"
-        : choice(body.parser_id, ["generic", "ing-de"]);
+        : choice(body.parser_id, ["generic", "ing-de", "sparkasse-camt52"]);
     return {
       account_id: accountId,
       config,

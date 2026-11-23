@@ -6,6 +6,7 @@ import {
   ParserRegistry,
   genericParser,
   ingParser,
+  sparkasseParser,
   parserRegistry,
   parseCSV,
   type ParserConfig,
@@ -453,7 +454,7 @@ test("Parser-Registry bietet den Generic-Parser und unterstützt austauschbare P
   assert.equal(parserRegistry.get("generic"), genericParser);
   assert.deepEqual(
     parserRegistry.list().map((parser) => parser.id),
-    ["generic", "ing-de"],
+    ["generic", "ing-de", "sparkasse-camt52"],
   );
   const registry = new ParserRegistry();
   registry.register({
@@ -578,4 +579,23 @@ test("ING-Umsatzexport überspringt Metadaten und kombiniert Buchungstext mit Ve
   ]);
   assert.equal(genericParser.id, "generic");
   assert.equal(ingParser.id, "ing-de");
+});
+
+test("Sparkassen-CAMT52 importiert nur gebuchte Umsätze mit zweistelligem Jahr", () => {
+  const rows = sparkasseParser.parse(fixture("sparkasse-camt52.csv"), german);
+  assert.deepEqual(rows, [
+    {
+      booking_date: "2026-11-23",
+      amount_cents: -5967,
+      counterparty: "JET BEISPIEL",
+      purpose: "SEPA-ELV-LASTSCHRIFT · Tanken Musterstadt",
+    },
+    {
+      booking_date: "2026-11-19",
+      amount_cents: 1,
+      counterparty: "BEISPIEL BANK GMBH",
+      purpose: "GUTSCHRIFT UEBERWEISUNG · Kontoverifizierung",
+    },
+  ]);
+  assert.equal(sparkasseParser.id, "sparkasse-camt52");
 });
