@@ -67,7 +67,10 @@ const ctx = {
     ctx.state = await ctx.api("/api/state");
   },
   navigate(page) {
-    if (location.hash === `#${page}`) return ctx.render();
+    if (location.hash === `#${page}`) {
+      transactionFilters.month = "";
+      return ctx.render();
+    }
     location.hash = page;
   },
   monthToolbar(withAccount = true) {
@@ -474,9 +477,9 @@ async function dashboard() {
             : 0,
       ),
     );
-    return h(
+    const card = h(
       "article",
-      { class: `category-card${category.remaining_cents < 0 ? " over" : ""}` },
+      { class: `category-card${category.remaining_cents < 0 ? " over" : ""}`, role: "button", tabindex: 0, "aria-label": `${category.name} Budget-Buchungen anzeigen` },
       h(
         "div",
         { class: "category-top" },
@@ -537,6 +540,21 @@ async function dashboard() {
           )
         : null,
     );
+    const openTransactions = () => {
+      transactionFilters.category = String(category.id);
+      transactionFilters.uncategorized = false;
+      transactionFilters.page = 1;
+      transactionFilters.month = ctx.month;
+      ctx.navigate("transactions");
+    };
+    card.addEventListener("click", openTransactions);
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openTransactions();
+      }
+    });
+    return card;
   });
   content.append(
     cards.length
@@ -556,6 +574,7 @@ const transactionFilters = {
   category: "",
   uncategorized: false,
   page: 1,
+  month: "",
 };
 async function transactions() {
   const list = h("div", { class: "transaction-list" });
@@ -598,7 +617,7 @@ async function transactions() {
   const load = async () => {
     const id = ++requestId;
     const params = new URLSearchParams({
-      month: ctx.month,
+      month: transactionFilters.month || ctx.month,
       page: transactionFilters.page - 1,
       ...(transactionFilters.text ? { text: transactionFilters.text } : {}),
       ...(ctx.account ? { account_id: ctx.account } : {}),

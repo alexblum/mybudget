@@ -63,6 +63,7 @@ Der Assistent hat sechs Bildschirme: Konten, Historienimport, Gegenparteigruppen
 3. Eindeutige Zuordnungen zu Bankbuchungen entstehen automatisch nach jedem Bank- oder PayPal-Import. Betrag, Richtung, PayPal-Bankfinanzierung beziehungsweise Auszahlung, Datumsabstand (höchstens 14 Tage) und verfügbare Händlerangaben dienen dem Abgleich. Bei mehreren möglichen Treffern wird keine Zuordnung erzwungen.
 4. Die Kontobuchung trägt „PayPal verknüpft“. Aufklappbare Details zeigen Händler, PayPal-Datum, Beschreibung, Rechnung und Transaktionscodes. Bankbetrag, Bankdatum und Kategorie bleiben unverändert.
 5. Im PayPal-Abgleich auf der Importseite offene Fälle prüfen, einen vorgeschlagenen Treffer manuell verknüpfen oder eine bestehende Zuordnung lösen und korrigieren. Eine gelöste Zuordnung wird nicht beim nächsten Import automatisch wiederhergestellt.
+Die Budgetkarten im Überblick führen per Klick oder Tastaturfokus in die Buchungsliste, bereits nach der gewählten Kategorie und dem aktuellen Übersichtsmonat gefiltert. Andere Filter wie Konto bleiben erhalten.
 
 Nicht zugeordnete PayPal-Vorgänge erscheinen ausschließlich im Abgleich, nicht im Budget. Käuferkredit-Käufe bleiben entsprechend markiert: Eine einzelne spätere Bankrate ist keinem Kauf zuverlässig zuzuordnen. Sammelabbuchungen, Teilfinanzierungen und Kreditraten werden nicht automatisch verknüpft. PayPal-Erstattungsdetails ändern die bestehende Budgetbehandlung der Bankgutschrift nicht.
 
