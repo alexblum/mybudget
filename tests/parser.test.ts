@@ -616,3 +616,25 @@ test("Sparkassen-CAMT52 importiert nur gebuchte Umsätze mit zweistelligem Jahr"
   ]);
   assert.equal(sparkasseParser.id, "sparkasse-camt52");
 });
+
+test("Sparkassen-CAMT52 verwendet bei Bankbuchungen verfügbare Texte als Gegenpartei", () => {
+  const source = [
+    '"Auftragskonto";"Buchungstag";"Valutadatum";"Buchungstext";"Verwendungszweck";"Beguenstigter/Zahlungspflichtiger";"Betrag";"Info"',
+    '"DE00";"23.11.26";"23.11.26";"ABSCHLUSS";"Zinsabrechnung";"";"-1,50";"Umsatz gebucht"',
+    '"DE00";"22.11.26";"22.11.26";"";"Kontoführung";"";"-2,00";"Umsatz gebucht"',
+  ].join("\n");
+  assert.deepEqual(sparkasseParser.parse(Buffer.from(source), german), [
+    {
+      booking_date: "2026-11-23",
+      amount_cents: -150,
+      counterparty: "ABSCHLUSS",
+      purpose: "ABSCHLUSS · Zinsabrechnung",
+    },
+    {
+      booking_date: "2026-11-22",
+      amount_cents: -200,
+      counterparty: "Kontoführung",
+      purpose: "Kontoführung",
+    },
+  ]);
+});

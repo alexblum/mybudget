@@ -551,11 +551,12 @@ export const sparkasseParser: CSVParser = {
       const type = record[bookingText]?.trim();
       const party = record[counterparty]?.trim();
       const details = record[purpose]?.trim();
-      if (!type || !party || !record[amount]?.trim())
+      const description = type || details;
+      if (!description || !record[amount]?.trim())
         throw new ParserError(
           "MISSING_VALUE",
           line,
-          "Ein Sparkassen-Pflichtfeld der Buchung ist leer.",
+          "Sparkassen-Betrag oder Beschreibung fehlt.",
         );
       rows.push({
         booking_date: parseDate(
@@ -564,8 +565,8 @@ export const sparkasseParser: CSVParser = {
           line,
         ),
         amount_cents: parseAmount(record[amount].trim(), ",", line),
-        counterparty: party,
-        purpose: details ? `${type} · ${details}` : type,
+        counterparty: party || description,
+        purpose: type && details ? `${type} · ${details}` : description,
       });
     }
     if (!rows.length)
