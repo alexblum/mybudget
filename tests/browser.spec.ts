@@ -224,42 +224,71 @@ test("wiederkehrende Zahlungsvorschläge zeigen Buchungsdaten statt DOM-Objektte
   } else {
     await page.getByRole("button", { name: "Anmelden", exact: true }).click();
   }
-  await page.getByRole("button", { name: "Mehr", exact: true }).click();
-  await page.getByRole("button", { name: "Konten", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Konto hinzufügen", exact: true })
-    .click();
-  const accountDialog = page.getByRole("dialog");
-  await accountDialog.getByLabel("Name", { exact: true }).fill("Vorschau Giro");
-  await accountDialog
-    .getByRole("button", { name: "Speichern", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Mehr", exact: true }).click();
-  await page.getByRole("button", { name: "Feste Posten", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Festen Posten hinzufügen", exact: true })
-    .click();
-  const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Name", { exact: true }).fill("Vorschau Miete");
-  await dialog.getByLabel("Betrag", { exact: true }).fill("42,50");
-  await dialog.getByLabel("Erste Fälligkeit").fill(`${month}-05`);
-  await dialog.getByLabel("Kategorie").selectOption({ label: "Wohnen" });
-  await dialog.getByLabel("Gegenpartei-Hinweis").fill("Vermieter Vorschau");
-  await dialog.getByRole("button", { name: "Speichern", exact: true }).click();
-  await page.getByRole("button", { name: "Import", exact: true }).click();
-  const csv = `Datum;Betrag;Gegenpartei;Verwendungszweck\n05.${month.slice(5)}.${month.slice(0, 4)};-42,50;Vermieter Vorschau;Miete\n`;
-  await page.getByLabel("Zielkonto").selectOption({ index: 1 });
-  await page.getByLabel("CSV-Datei").setInputFiles({
-    name: "miete.csv",
-    mimeType: "text/csv",
-    buffer: Buffer.from(csv),
-  });
-  await page
-    .getByRole("button", { name: "Vorschau anzeigen", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Import bestätigen", exact: true })
-    .click();
+  await page.getByRole("navigation", { name: "Hauptnavigation" }).waitFor();
+  const auth = await page.evaluate(async () =>
+    (await fetch("/api/auth")).json(),
+  );
+  const state = await page.evaluate(
+    async ({ csrf }) =>
+      (await fetch("/api/state", { headers: { "x-csrf-token": csrf } })).json(),
+    { csrf: auth.csrf },
+  );
+  const account = await page.evaluate(
+    async ({ csrf }) => {
+      const response = await fetch("/api/accounts", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": csrf },
+        body: JSON.stringify({ name: "Vorschau Giro", type: "Giro" }),
+      });
+      return response.json();
+    },
+    { csrf: auth.csrf },
+  );
+  const categoryId = state.categories.find(
+    (category: { name: string }) => category.name === "Wohnen",
+  ).id;
+  await page.evaluate(
+    async ({ csrf, accountId, categoryId, month, csv }) => {
+      const call = (url: string, body: object) =>
+        fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-csrf-token": csrf },
+          body: JSON.stringify(body),
+        });
+      await call("/api/recurring-items", {
+        name: "Vorschau Miete",
+        amount_cents: 4250,
+        interval: "monthly",
+        first_due_date: `${month}-05`,
+        category_id: categoryId,
+        counterparty_hint: "Vermieter Vorschau",
+      });
+      await call("/api/import/confirm", {
+        account_id: accountId,
+        filename: "miete.csv",
+        content_base64: btoa(csv),
+        config: {
+          delimiter: ";",
+          encoding: "utf-8",
+          date_format: "DD.MM.YYYY",
+          decimal_format: ",",
+          column_mapping: {
+            booking_date: "Datum",
+            amount_cents: "Betrag",
+            counterparty: "Gegenpartei",
+            purpose: "Verwendungszweck",
+          },
+        },
+      });
+    },
+    {
+      csrf: auth.csrf,
+      accountId: account.id,
+      categoryId,
+      month,
+      csv: `Datum;Betrag;Gegenpartei;Verwendungszweck\n05.${month.slice(5)}.${month.slice(0, 4)};-42,50;Vermieter Vorschau;Miete\n`,
+    },
+  );
   await page.getByRole("button", { name: "Mehr", exact: true }).click();
   await page.getByRole("button", { name: "Feste Posten", exact: true }).click();
   await expect(
