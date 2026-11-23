@@ -225,13 +225,23 @@ test("wiederkehrende Zahlungsvorschläge zeigen Buchungsdaten statt DOM-Objektte
     await page.getByRole("button", { name: "Anmelden", exact: true }).click();
   }
   await page.getByRole("button", { name: "Mehr", exact: true }).click();
+  await page.getByRole("button", { name: "Konten", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Konto hinzufügen", exact: true })
+    .click();
+  const accountDialog = page.getByRole("dialog");
+  await accountDialog.getByLabel("Name", { exact: true }).fill("Vorschau Giro");
+  await accountDialog
+    .getByRole("button", { name: "Speichern", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Mehr", exact: true }).click();
   await page.getByRole("button", { name: "Feste Posten", exact: true }).click();
   await page
     .getByRole("button", { name: "Festen Posten hinzufügen", exact: true })
     .click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name", { exact: true }).fill("Vorschau Miete");
-  await dialog.getByLabel("Betrag in Euro").fill("42,50");
+  await dialog.getByLabel("Betrag", { exact: true }).fill("42,50");
   await dialog.getByLabel("Erste Fälligkeit").fill(`${month}-05`);
   await dialog.getByLabel("Kategorie").selectOption({ label: "Wohnen" });
   await dialog.getByLabel("Gegenpartei-Hinweis").fill("Vermieter Vorschau");
@@ -239,13 +249,11 @@ test("wiederkehrende Zahlungsvorschläge zeigen Buchungsdaten statt DOM-Objektte
   await page.getByRole("button", { name: "Import", exact: true }).click();
   const csv = `Datum;Betrag;Gegenpartei;Verwendungszweck\n05.${month.slice(5)}.${month.slice(0, 4)};-42,50;Vermieter Vorschau;Miete\n`;
   await page.getByLabel("Zielkonto").selectOption({ index: 1 });
-  await page
-    .getByLabel("CSV-Datei")
-    .setInputFiles({
-      name: "miete.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from(csv),
-    });
+  await page.getByLabel("CSV-Datei").setInputFiles({
+    name: "miete.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(csv),
+  });
   await page
     .getByRole("button", { name: "Vorschau anzeigen", exact: true })
     .click();
